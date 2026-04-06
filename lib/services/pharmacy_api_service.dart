@@ -19,7 +19,14 @@ class PharmacyApiService {
     final List<Medicine>? firestoreMedicines =
         await _fetchMedicinesFromFirestore();
     if (firestoreMedicines != null && firestoreMedicines.isNotEmpty) {
-      return firestoreMedicines;
+      // Keep the full catalog from local JSON and let Firestore docs override
+      // matching items by id so partial Firestore data doesn't shrink the UI.
+      final List<Medicine> localMedicines =
+          await _fetchMedicinesFromLocalJson();
+      return _mergeMedicines(
+        baseMedicines: localMedicines,
+        overrideMedicines: firestoreMedicines,
+      );
     }
 
     final List<Medicine>? apiMedicines = await _fetchMedicinesFromApi();
@@ -236,5 +243,22 @@ class PharmacyApiService {
       }
     }
     return null;
+  }
+
+  List<Medicine> _mergeMedicines({
+    required List<Medicine> baseMedicines,
+    required List<Medicine> overrideMedicines,
+  }) {
+    final Map<int, Medicine> mergedById = <int, Medicine>{
+      for (final Medicine medicine in baseMedicines) medicine.id: medicine,
+    };
+
+    for (final Medicine medicine in overrideMedicines) {
+      mergedById[medicine.id] = medicine;
+    }
+
+    final List<Medicine> merged = mergedById.values.toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
+    return merged;
   }
 }
